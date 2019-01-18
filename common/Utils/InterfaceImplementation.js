@@ -122,6 +122,13 @@ function InterfaceImplementation(interfaceClass, implementerClass, implementatio
     return defaultValue;
   };
 
+  this.callMethodOrElse = (defaultValueFunction, method, ...args) => {
+    if (methodIsImplemented(implementation, method)) {
+      return implementation[method].call(interfaceClass, ...args);
+    }
+    return defaultValueFunction();
+  };
+
   function methodIsImplemented(interfaceImplementation, method) {
     return typeof interfaceImplementation[method] === 'function';
   }

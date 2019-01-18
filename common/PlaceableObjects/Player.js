@@ -5,6 +5,8 @@ import SerializableInterface from '../Interfaces/SerializableInterface';
 import PlaceableObjectInterface from '../Interfaces/PlaceableObjectInterface';
 import { setDebugProperty } from '../Utils/Debug';
 import { randomColor } from '../Utils/InitializeHelpers';
+import CopyableInterface from '../Interfaces/CopyableInterface';
+import { copy, copyInto } from '../Utils/CopyableHelpers';
 
 const BASE_PLAYER_RADIUS = 5;
 
@@ -46,6 +48,20 @@ function Player(position, isPlaced, color = null, predefinedHashId = '') {
       parameters.color = newColor;
       setDebugProperty(this, 'color', newColor);
       return this;
+    },
+  });
+
+  this.copyableInterface = new CopyableInterface(this, {
+    copy: () => {
+      const player = copyInto(
+        Player,
+        parameters.position,
+        parameters.isPlaced,
+        parameters.color,
+        this.hashableIdInterface.getHashId(),
+      );
+      player.movementDirection = copy(this.movementDirection);
+      return player;
     },
   });
 

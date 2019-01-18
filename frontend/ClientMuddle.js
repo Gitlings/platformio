@@ -1,9 +1,10 @@
 import { initializeMuddle } from 'common/Muddle';
 import ActionController from 'common/Controllers/ActionController';
 import PlayerModel from 'common/Models/PlayerModel';
+import GameSceneSnapshots from 'common/Models/GameSceneSnapshots';
+import GameState from 'common/Models/GameState';
 
 import StoreMuddle from './StoreMuddle';
-
 import CameraWrapper from './game/Models/CameraWrapper';
 import CanvasWrapper from './game/Models/CanvasWrapper';
 import BuilderController from './game/Controllers/BuilderController';
@@ -35,6 +36,8 @@ const ClientMuddle = initializeMuddle((common, pourService) => {
     UiManager,
     common[ActionController],
     common[PlayerModel],
+    common[GameState],
+    common[GameSceneSnapshots],
     VuexStore,
   );
 

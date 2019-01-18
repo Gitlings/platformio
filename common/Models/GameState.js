@@ -1,21 +1,27 @@
 /**
- * Readonly interface for accessing game scene state.
- *
- * @param {GameScene} gameScene
  * @constructor
  */
-function GameState(gameScene) {
-  this.getAllObjects = () => gameScene.getAllObjects();
-  this.getObject = hashId => gameScene.getObject(hashId);
-  this.hasObject = hashId => gameScene.hasObject(hashId);
-
-  this.getBuildableObject = hashId => gameScene.getBuildableObject(hashId);
-  this.hasBuildableObject = hashId => gameScene.hasBuildableObject(hashId);
-  this.getAllBuildableObjects = () => gameScene.getAllBuildableObjects();
-
-  this.getPlayer = hashId => gameScene.getPlayer(hashId);
-  this.getAllPlayers = () => gameScene.getAllPlayers();
-  this.getAllPlayersWithClientIds = () => gameScene.getAllPlayersWithClientIds();
+function GameState() {
+  /**
+   * @type {number}
+   */
+  this.lagCompensatedTick = 0;
+  /**
+   * @type {number}
+   */
+  this.currentTick = 0;
+  /**
+   * @type {number}
+   */
+  this.serverTick = 0;
+  /**
+   * @type {number}
+   */
+  this.previousServerTick = 0;
+  /**
+   * @type {Date}
+   */
+  this.lastServerUpdateTime = 0;
 }
 
 export default GameState;

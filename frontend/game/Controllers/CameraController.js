@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import UpdatableInterface from 'common/Interfaces/UpdatableInterface';
+import { GAMEPLAY_UPDATE_INTERVAL_SECS } from 'common/Constants';
 import MovementDirections from '../Utils/MovementDirections';
 
 /**
@@ -10,9 +11,9 @@ import MovementDirections from '../Utils/MovementDirections';
 function CameraController(cameraWrapper, canvasWrapper) {
   // INTERFACES IMPLEMENTATION.
   this.updatableInterface = new UpdatableInterface(this, {
-    update: (timeDelta) => {
+    update: () => {
       cameraWrapper.updateCameraSize(new THREE.Vector2(), canvasWrapper.getCanvasSize());
-      moveCamera(timeDelta);
+      moveCamera();
     },
   });
 
@@ -24,11 +25,11 @@ function CameraController(cameraWrapper, canvasWrapper) {
 
   const CAMERA_SPEED = 150;
 
-  function moveCamera(timeDelta) {
+  function moveCamera() {
     const offsetVector = movingDirections
       .getDirectionVector()
       .clone()
-      .multiplyScalar(CAMERA_SPEED * timeDelta);
+      .multiplyScalar(CAMERA_SPEED * GAMEPLAY_UPDATE_INTERVAL_SECS);
     const newPosition = cameraWrapper.getPosition().clone().add(offsetVector);
     cameraWrapper.setPosition(newPosition);
   }

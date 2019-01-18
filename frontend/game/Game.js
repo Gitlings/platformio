@@ -4,6 +4,12 @@ import * as THREE from 'three';
 import Engine from 'common';
 import EngineConfig from 'common/EngineConfig';
 import ActionController from 'common/Controllers/ActionController';
+import GameStateReadOnly from 'common/Models/GameStateReadOnly';
+import {
+  GAMEPLAY_UPDATE_INTERVAL,
+  NETWORK_UPDATE_INTERVAL,
+  GAMEPLAY_UPDATE_INTERVAL_SECS,
+} from 'common/Constants';
 
 import Renderer from './Renderer';
 import Sandbox from './Sandbox';
@@ -29,47 +35,49 @@ function Game() {
    */
   const networkController = ClientMuddle[ClientNetworkController];
 
+  /**
+   * @type GameStateReadOnly
+   */
+  const gameState = ClientMuddle.common[GameStateReadOnly];
+
   if (EngineConfig.debugIsEnabled()) {
     window.THREE = THREE;
   }
 
   // Gameloop.
-
-  const GAMEPLAY_UPDATE_INTERVAL = 15;
-  const NETWORK_UPDATE_INTERVAL = 45;
-  const RENDER_UPDATE_INTERVAL = 1000 / 60;
-
   let lastGameplayUpdate = 0;
   let lastNetworkUpdate = 0;
-  let lastRenderUpdate = 0;
-  let crashed = false;
 
   function tick(now) {
-    if (crashed) return;
-    requestAnimationFrame(tick);
-
     const gameplayTimeDelta = now - lastGameplayUpdate;
-    const renderTimeDelta = now - lastRenderUpdate;
     const networkTimeDelta = now - lastNetworkUpdate;
 
-    try {
-      const gameplayTimeDeltaSecs = gameplayTimeDelta / 1000;
-      if (gameplayTimeDelta >= GAMEPLAY_UPDATE_INTERVAL) {
+    const clientLagsBehind = gameState.getCurrentTick() < gameState.getServerTick();
+
+    if (gameplayTimeDelta >= GAMEPLAY_UPDATE_INTERVAL || clientLagsBehind) {
+      let notWaitingForNetwork = engine.tick(GAMEPLAY_UPDATE_INTERVAL_SECS);
+      while (gameState.getLagCompensatedTick() < gameState.getCurrentTick()) {
+        notWaitingForNetwork = engine.tick(GAMEPLAY_UPDATE_INTERVAL_SECS);
+      }
+
+      if (notWaitingForNetwork) {
         lastGameplayUpdate = now;
-        engine.tick(gameplayTimeDeltaSecs);
-        mainUiController.updatableInterface.update(gameplayTimeDeltaSecs);
+        mainUiController.updatableInterface.update();
       }
-      if (networkTimeDelta >= NETWORK_UPDATE_INTERVAL) {
-        lastNetworkUpdate = now;
-        networkController.updatableInterface.update(gameplayTimeDeltaSecs);
-      }
-      if (renderTimeDelta >= RENDER_UPDATE_INTERVAL) {
-        lastRenderUpdate = now;
+      if (gameState.getCurrentTick() > gameState.getPreviousServerTick()) {
         renderer.render();
       }
-    } catch (error) {
-      crashed = true;
-      throw error;
+    }
+    if (networkTimeDelta >= NETWORK_UPDATE_INTERVAL) {
+      lastNetworkUpdate = now;
+      networkController.updatableInterface.update();
+    }
+
+
+    if (gameState.getCurrentTick() > gameState.getPreviousServerTick()) {
+      requestAnimationFrame(tick);
+    } else {
+      setTimeout(tick, 0);
     }
   }
 

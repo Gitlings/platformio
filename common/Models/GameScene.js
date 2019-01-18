@@ -1,13 +1,37 @@
 import HashableIdInterface from '../Interfaces/HashableIdInterface';
+import CopyableInterface from '../Interfaces/CopyableInterface';
+import { copy } from '../Utils/CopyableHelpers';
 
 /**
+ * IMPORTANT: game scenes can cause memory leaks, because they have cross references with
+ * placeable objects. If you want to remove a scene, remember to call `destroy` method!!!
+ *
  * @constructor
  */
-function GameScene() {
+function GameScene(predefinedHashId = '') {
   // INTERFACES IMPLEMENTATION.
-  this.hashableIdInterface = new HashableIdInterface(this, '', {});
+  this.hashableIdInterface = new HashableIdInterface(this, predefinedHashId, {});
 
-  // CLASSES IMPLEMENTATION.
+  this.copyableInterface = new CopyableInterface(this, {
+    copy: () => {
+      const scene = new GameScene(this.hashableIdInterface.getHashId());
+      for (const buildableObject of this.getAllBuildableObjects()) {
+        scene.addBuildableObject(copy(buildableObject));
+      }
+      for (const [clientId, player] of this.getAllPlayersWithClientIds()) {
+        scene.addPlayer(clientId, copy(player));
+      }
+      scene.currentTick = this.currentTick;
+      return scene;
+    },
+  });
+
+  // CLASS IMPLEMENTATION.
+  /**
+   * @type {number}
+   */
+  this.currentTick = 0;
+
   const objects = new Map();
   this.getAllObjects = () => objects.values();
   this.getObject = hashId => objects.get(hashId);
@@ -94,6 +118,20 @@ function GameScene() {
       players.delete(hashId);
       playersByClientIds.delete(clientId);
     }
+  };
+
+  /**
+   * Iterates all the objects and removes cross references, so all the values can be
+   * garbage collected.
+   */
+  this.destroy = () => {
+    for (const object of this.getAllObjects()) {
+      object.placeableObjectInterface.setScene(null);
+    }
+    objects.clear();
+    buildableObjects.clear();
+    players.clear();
+    playersByClientIds.clear();
   };
 }
 

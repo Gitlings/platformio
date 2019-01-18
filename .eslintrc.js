@@ -60,16 +60,7 @@ module.exports = {
         message: '`with` is disallowed in strict mode because it makes code impossible to predict and optimize.',
       },
     ],
-    'no-param-reassign': ['error', {
-      props: true,
-      ignorePropertyModificationsFor: [
-        'acc', // for reduce accumulators
-        'e', // for e.returnvalue
-        'state', // for vuex
-        'rendererMesh',
-        'proxyTarget', // for Proxy
-      ]
-    }],
+    'no-param-reassign': 'off',
     'no-console': 'off',
     'no-unused-vars': ["error", { "argsIgnorePattern": "^_" }],
     'no-mixed-operators': ['error', {

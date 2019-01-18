@@ -24,7 +24,7 @@ function NetworkMessageSystem(actionController) {
     const action = message.networkMessageInterface.getPayload();
     const senderId = message.networkMessageInterface.getSenderId();
     if (EngineConfig.isServer()) {
-      action.broadcastedActionInterface.setSenderId(senderId);
+      action.actionInterface.senderId = senderId;
     }
     actionController.addAction(action);
   }

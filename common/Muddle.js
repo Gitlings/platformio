@@ -2,11 +2,13 @@ import Bottle from 'bottlejs';
 import ActionController from './Controllers/ActionController';
 import NetworkMessageSystem from './Systems/NetworkMessageSystem';
 import BuildableObjectSystem from './Systems/BuildableObjectSystem';
-import GameScene from './Models/GameScene';
 import PlayerModel from './Models/PlayerModel';
 import MovementSystem from './Systems/MovementSystem';
 import PlayerSystem from './Systems/PlayerSystem';
+import BroadcastedActionsQueue from './Models/BroadcastedActionsQueue';
+import GameSceneSnapshots from './Models/GameSceneSnapshots';
 import GameState from './Models/GameState';
+import GameStateReadOnly from './Models/GameStateReadOnly';
 
 const bottle = new Bottle();
 
@@ -22,9 +24,7 @@ const bottle = new Bottle();
  */
 function createPourService(prefix = '') {
   return (serviceConstructor, ...dependencies) => {
-    // eslint-disable-next-line no-param-reassign
     serviceConstructor.toString = () => serviceConstructor.name; // DEUS VULT!
-    // eslint-disable-next-line no-param-reassign
     serviceConstructor.serviceName = prefix + serviceConstructor.name;
 
     bottle.service(
@@ -43,18 +43,30 @@ function createPourService(prefix = '') {
 const pourCommonService = createPourService('common.');
 
 // Models.
-pourCommonService(GameScene);
-pourCommonService(GameState, GameScene);
+pourCommonService(GameSceneSnapshots);
+pourCommonService(GameState);
+pourCommonService(GameStateReadOnly, GameState);
 pourCommonService(PlayerModel);
+pourCommonService(BroadcastedActionsQueue);
 
+// Systems as Controllers dependencies.
+pourCommonService(BuildableObjectSystem, GameSceneSnapshots, PlayerModel);
+pourCommonService(MovementSystem, GameSceneSnapshots, PlayerModel, BroadcastedActionsQueue);
+pourCommonService(PlayerSystem, GameSceneSnapshots, PlayerModel);
 // Controllers.
-pourCommonService(ActionController, GameScene, PlayerModel);
+pourCommonService(
+  ActionController,
+  GameState,
+  GameSceneSnapshots,
+  BuildableObjectSystem,
+  MovementSystem,
+  PlayerSystem,
+  BroadcastedActionsQueue,
+  PlayerModel,
+);
 
 // Systems.
-pourCommonService(BuildableObjectSystem, GameScene, PlayerModel);
-pourCommonService(MovementSystem, GameScene, PlayerModel);
 pourCommonService(NetworkMessageSystem, ActionController);
-pourCommonService(PlayerSystem, GameScene, PlayerModel);
 
 
 const { common } = bottle.container;

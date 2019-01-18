@@ -115,7 +115,6 @@ impl MuddleWorld {
 
     pub fn process_players_movement(
         &mut self,
-        time_delta: f64,
         players: js_sys::Iterator,
         _objects: js_sys::Iterator,
     ) {
@@ -139,7 +138,6 @@ impl MuddleWorld {
             player_body.set_velocity(Velocity2::linear(player_velocity.x, player_velocity.y));
         }
 
-        self.world.set_timestep(time_delta);
         self.world.step();
 
         for player_object in players.iter().cloned() {

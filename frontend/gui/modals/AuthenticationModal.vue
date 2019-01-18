@@ -53,7 +53,7 @@ export default {
       if (typeof newClientId === 'string') {
         this.messages.push({ message: newClientId, messageCounter: this.messageCounter });
         this.messageCounter += 1;
-        this.playerModel.clientId = null;
+        this.playerModel.clientActionId = null;
       }
     },
   },

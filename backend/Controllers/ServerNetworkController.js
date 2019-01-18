@@ -17,21 +17,39 @@ import { broadcastToEveryone } from '../Utils/ServerNetworkUtils';
 /**
  * @param {ActionController} actionController
  * @param {GameState} gameState
+ * @param {GameSceneSnapshots} gameSceneSnapshots
+ * @param {BroadcastedActionsQueue} broadcastedActionsQueue
  * @constructor
  */
-function ServerNetworkController(actionController, gameState) {
+function ServerNetworkController(
+  actionController,
+  gameState,
+  gameSceneSnapshots,
+  broadcastedActionsQueue,
+) {
   let clientIdCount = 0;
 
   const wss = new WebSocket.Server({
     port: 8080,
     perMessageDeflate: false,
   });
-  const serverNetworkMessageSystem = new ServerNetworkMessageSystem(actionController, gameState);
+  const serverNetworkMessageSystem = new ServerNetworkMessageSystem(
+    actionController,
+    gameState,
+    gameSceneSnapshots,
+    broadcastedActionsQueue,
+  );
   const networkMessageSystem = new NetworkMessageSystem(actionController);
 
   this.updatableInterface = new UpdatableInterface(this, {
-    update: (timeDelta) => {
-      serverNetworkMessageSystem.updatableInterface.update(timeDelta);
+    update: () => {
+      serverNetworkMessageSystem.updatableInterface.update();
+    },
+  });
+
+  this.networkControllerInterface = new NetworkControllerInterface(this, {
+    broadcastAction: (action) => {
+      broadcastToEveryone(new BroadcastActionMessage(action));
     },
   });
 
@@ -66,12 +84,6 @@ function ServerNetworkController(actionController, gameState) {
     const player = new PlayerModel(clientIdCount);
     ClientsRegistry.registerClient(player, ws);
     clientIdCount += 1;
-  });
-
-  this.networkControllerInterface = new NetworkControllerInterface(this, {
-    broadcastAction: (action) => {
-      broadcastToEveryone(new BroadcastActionMessage(action));
-    },
   });
 
   process.on('SIGTERM', () => {

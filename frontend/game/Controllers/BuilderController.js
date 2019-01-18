@@ -20,7 +20,7 @@ function BuilderController(actionController, canvasWrapper) {
   let placedObject = null;
 
   this.updatableInterface = new UpdatableInterface(this, {
-    update: (_timeDelta) => {
+    update: () => {
       if (!activated) {
         return;
       }

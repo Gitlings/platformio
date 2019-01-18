@@ -1,5 +1,15 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import Engine from 'common';
+import {
+  GAMEPLAY_UPDATE_INTERVAL,
+  NETWORK_UPDATE_INTERVAL,
+  GAMEPLAY_UPDATE_INTERVAL_SECS,
+} from 'common/Constants';
+import CommonMuddle from 'common/Muddle';
+import GameScene from 'common/Models/GameScene';
+import GameSceneSnapshots from 'common/Models/GameSceneSnapshots';
+import GameStateReadOnly from 'common/Models/GameStateReadOnly';
+
 import ServerMuddle from './ServerMuddle';
 import ServerNetworkController from './Controllers/ServerNetworkController';
 
@@ -13,43 +23,56 @@ function Server() {
    */
   const networkController = ServerMuddle[ServerNetworkController];
 
+  /**
+   * @type GameStateReadOnly
+   */
+  const gameState = ServerMuddle.common[GameStateReadOnly];
+
+  /**
+   * @type GameSceneSnapshots
+   */
+  const gameSceneSnapshots = CommonMuddle[GameSceneSnapshots];
+  const gameScene = new GameScene();
+  gameSceneSnapshots.setCurrent(gameScene);
+  gameSceneSnapshots.addSnapshot(0, gameScene);
+
   // Gameloop.
+  const initNow = new Date();
+  let lastGameplayUpdate = initNow - NETWORK_UPDATE_INTERVAL;
+  let lastNetworkUpdate = initNow;
 
-  // TODO: maybe there's more clever way to tick without setImmediate performance impact.
-  const TICK_INTERVAL = 5;
-  const GAMEPLAY_UPDATE_INTERVAL = 15;
-  const NETWORK_UPDATE_INTERVAL = 45;
+  let firstInit = true;
 
-  let lastGameplayUpdate = 0;
-  let lastNetworkUpdate = 0;
-  let crashed = false;
+  function tick(initTime = null) {
+    const now = firstInit ? initTime : new Date();
+    firstInit = false;
 
-  function tick() {
-    if (crashed) return;
-    setTimeout(tick, TICK_INTERVAL);
-    const now = new Date();
-
-    const gameplayTimeDelta = now - lastGameplayUpdate;
     const networkTimeDelta = now - lastNetworkUpdate;
 
-    try {
-      const gameplayTimeDeltaSecs = gameplayTimeDelta / 1000;
-      const networkTimeDeltaSecs = networkTimeDelta / 1000;
-      if (gameplayTimeDelta >= GAMEPLAY_UPDATE_INTERVAL) {
-        lastGameplayUpdate = now;
-        engine.tick(gameplayTimeDeltaSecs);
+    if (networkTimeDelta >= NETWORK_UPDATE_INTERVAL) {
+      while (lastGameplayUpdate < now - GAMEPLAY_UPDATE_INTERVAL) {
+        lastGameplayUpdate += GAMEPLAY_UPDATE_INTERVAL;
+        engine.tick(GAMEPLAY_UPDATE_INTERVAL_SECS);
+        while (gameState.getLagCompensatedTick() < gameState.getCurrentTick()) {
+          engine.tick(GAMEPLAY_UPDATE_INTERVAL_SECS);
+        }
       }
-      if (networkTimeDelta >= NETWORK_UPDATE_INTERVAL) {
-        lastNetworkUpdate = now;
-        networkController.updatableInterface.update(networkTimeDeltaSecs);
-      }
-    } catch (error) {
-      crashed = true;
-      throw error;
+
+      lastNetworkUpdate = now;
+      networkController.updatableInterface.update();
+    }
+
+    const networkTimeDeltaAfter = now - lastNetworkUpdate;
+
+    const closestTickInterval = NETWORK_UPDATE_INTERVAL - networkTimeDeltaAfter - 1;
+    if (closestTickInterval > 1) {
+      setTimeout(tick, closestTickInterval);
+    } else {
+      setImmediate(tick, closestTickInterval);
     }
   }
 
-  tick();
+  tick(initNow);
 }
 
 export default Server;

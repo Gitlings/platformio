@@ -1,37 +1,33 @@
 import ActionInterface from '../Interfaces/ActionInterface';
 import SerializableInterface from '../Interfaces/SerializableInterface';
 import { setDebugProperty } from '../Utils/Debug';
-import BroadcastedActionInterface from '../Interfaces/BroadcastedActionInterface';
 
 /**
  * @param {string} buildableObjectHashId
- * @param timeOccurred
+ * @param {number|null} tickOccurred
  * @param {number|null} senderId
+ * @param {number|null} clientActionId
  * @constructor
  */
-function RemoveBuildableObjectAction(buildableObjectHashId, timeOccurred = 0, senderId = null) {
-  const parameters = {};
-
+function RemoveBuildableObjectAction(
+  buildableObjectHashId,
+  tickOccurred = null,
+  senderId = null,
+  clientActionId = null,
+) {
   // INTERFACES IMPLEMENTATION.
   this.actionInterface = new ActionInterface(this, {
-    getTimeOccurred: () => parameters.timeOccurred,
-
-    setTimeOccurred: (newTimeOccurred) => {
-      parameters.timeOccurred = newTimeOccurred;
-      setDebugProperty(this, 'timeOccurred', newTimeOccurred);
-      return this;
-    },
+    isBroadcastedAfterExecution: () => true,
   });
-
-  this.broadcastedActionInterface = new BroadcastedActionInterface(this, {});
 
   // CLASS IMPLEMENTATION.
   this.getBuildableObjectHashId = () => buildableObjectHashId;
   setDebugProperty(this, 'buildableObjectHashId', buildableObjectHashId);
 
   // INITIALIZE DEFAULT PARAMETERS.
-  this.actionInterface.setTimeOccurred(timeOccurred);
-  this.broadcastedActionInterface.setSenderId(senderId);
+  this.actionInterface.tickOccurred = tickOccurred;
+  this.actionInterface.senderId = senderId;
+  this.actionInterface.clientActionId = clientActionId;
 }
 
 RemoveBuildableObjectAction.serializableInterface =
@@ -41,14 +37,16 @@ RemoveBuildableObjectAction.serializableInterface =
      */
     serialize: action => ({
       buildableObjectHashId: () => action.getBuildableObjectHashId(),
-      timeOccurred: () => action.actionInterface.getTimeOccurred(),
-      senderId: () => action.broadcastedActionInterface.getSenderId(),
+      tickOccurred: () => action.actionInterface.tickOccurred,
+      senderId: () => action.actionInterface.senderId,
+      clientActionId: () => action.actionInterface.clientActionId,
     }),
 
     deserialize: object => new RemoveBuildableObjectAction(
       object.buildableObjectHashId,
-      new Date(object.timeOccurred),
+      object.tickOccurred,
       object.senderId,
+      object.clientActionId,
     ),
   });
 

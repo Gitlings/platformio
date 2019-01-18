@@ -24,11 +24,11 @@ function MainUiController(
   const cameraController = new CameraController(cameraWrapper, canvasWrapper);
 
   this.updatableInterface = new UpdatableInterface(this, {
-    update: (timeDelta) => {
-      cameraController.updatableInterface.update(timeDelta);
+    update: () => {
+      cameraController.updatableInterface.update();
       canvasWrapper.updateWorldMousePosition(cameraWrapper);
-      builderController.updatableInterface.update(timeDelta);
-      playerController.updatableInterface.update(timeDelta);
+      builderController.updatableInterface.update();
+      playerController.updatableInterface.update();
     },
   });
 

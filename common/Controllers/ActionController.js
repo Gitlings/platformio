@@ -1,30 +1,55 @@
-import BroadcastedActionInterface from '../Interfaces/BroadcastedActionInterface';
-import BuildableObjectSystem from '../Systems/BuildableObjectSystem';
-import MovementSystem from '../Systems/MovementSystem';
-import PlayerSystem from '../Systems/PlayerSystem';
 import UpdatableInterface from '../Interfaces/UpdatableInterface';
+import EngineConfig from '../EngineConfig';
+import { GAMEPLAY_UPDATE_INTERVAL, LAG_COMPENSATION_THRESHOLD } from '../Constants';
+import { replaying } from '../Utils/SystemHelpers';
+import { copy } from '../Utils/CopyableHelpers';
 
 /**
- * @param {GameScene} gameScene
- * @param {PlayerModel} playerModel - Is supposed to have null clientId on server.
+ * @param {GameState} gameState
+ * @param {GameSceneSnapshots} gameSceneSnapshots
+ * @param {BuildableObjectSystem} buildableObjectSystem
+ * @param {MovementSystem} movementSystem
+ * @param {PlayerSystem} playerSystem
+ * @param {BroadcastedActionsQueue} broadcastedActionsQueue
+ * @param {PlayerModel} playerModel
  *
  * @constructor
  */
-function ActionController(gameScene, playerModel) {
+function ActionController(
+  gameState,
+  gameSceneSnapshots,
+  buildableObjectSystem,
+  movementSystem,
+  playerSystem,
+  broadcastedActionsQueue,
+  playerModel,
+) {
+  let actionCounter = 0;
   const actionsQueue = [];
-  const broadcastedActionsQueue = [];
   let networkController = null;
 
   const systems = {
-    buildableObjectSystem: new BuildableObjectSystem(gameScene, playerModel),
-    movementSystem: new MovementSystem(gameScene, playerModel),
-    playerSystem: new PlayerSystem(gameScene, playerModel),
+    buildableObjectSystem,
+    movementSystem,
+    playerSystem,
   };
 
   // INTERFACES IMPLEMENTATION.
   this.updatableInterface = new UpdatableInterface(this, {
-    update: (timeDelta) => {
-      const actions = drainActions();
+    update: () => {
+      if (!gameSceneSnapshots.getCurrent()) {
+        return;
+      }
+
+      if (gameState.lagCompensatedTick < gameSceneSnapshots.getCurrent().currentTick) {
+        const snapshot = gameSceneSnapshots.getSnapshot(gameState.lagCompensatedTick)
+          || gameSceneSnapshots.getSnapshot(gameState.currentTick);
+        gameSceneSnapshots.setCurrent(copy(snapshot));
+      }
+
+      const gameScene = gameSceneSnapshots.getCurrent();
+
+      const actions = getCurrentTickActions();
       for (const action of actions) {
         for (const systemKey of Object.keys(systems)) {
           const system = systems[systemKey];
@@ -34,12 +59,32 @@ function ActionController(gameScene, playerModel) {
         }
       }
 
-      systems.movementSystem.updatableInterface.update(timeDelta);
+      systems.movementSystem.updatableInterface.update();
 
-      const broadcastedActions = drainBroadcastedActionsQueue();
-      for (const action of broadcastedActions) {
-        networkController.networkControllerInterface.broadcastAction(action);
+      for (const action of actions) {
+        const isNotBroadcastedYet = action.actionInterface.isBroadcastedAfterExecution()
+          && !action.actionInterface.isManagedBySystem();
+        if (isNotBroadcastedYet && !action.actionInterface.hasBeenBroadcasted) {
+          broadcastedActionsQueue.addAction(action);
+        }
       }
+
+      if (EngineConfig.isClient()) {
+        for (const action of broadcastedActionsQueue.getActions()) {
+          networkController.networkControllerInterface.broadcastAction(action);
+        }
+        broadcastedActionsQueue.clearActions();
+      }
+
+      // Clear old data.
+      gameSceneSnapshots.removeSnapshotsOlder(Math.min(
+        gameState.lagCompensatedTick,
+        gameState.previousServerTick,
+      ));
+      dropOldActions();
+
+      gameScene.currentTick += 1;
+      gameSceneSnapshots.addSnapshot(gameState.lagCompensatedTick + 1, gameScene);
     },
   });
 
@@ -49,24 +94,92 @@ function ActionController(gameScene, playerModel) {
   };
 
   this.addAction = (action) => {
-    action.actionInterface.setTimeOccurred(0); // TODO: set actual game time.
+    if (action.actionInterface.tickOccurred === null) {
+      action.actionInterface.tickOccurred = gameState.currentTick;
+      if (EngineConfig.isClient()) {
+        action.actionInterface.clientActionId = actionCounter;
+      }
+    }
+    lagCompensate(action);
+    action.actionInterface.internalActionId = actionCounter;
+    actionCounter += 1;
+
     actionsQueue.push(action);
-    if (BroadcastedActionInterface.has(action)) {
-      if (!action.broadcastedActionInterface.isBroadcastedAfterExecution()) {
-        networkController.networkControllerInterface.broadcastAction(action);
-      } else {
-        broadcastedActionsQueue.push(action);
+
+    if (action.actionInterface.hasBeenBroadcasted) {
+      return;
+    }
+
+    if (!action.actionInterface.isBroadcastedAfterExecution()) {
+      networkController.networkControllerInterface.broadcastAction(action);
+    } else if (!action.actionInterface.isManagedBySystem()) {
+      const clientReplaying = EngineConfig.isClient() && replaying(action, playerModel);
+      if (!clientReplaying) {
+        broadcastedActionsQueue.addAction(action);
       }
     }
   };
 
-  function drainActions() {
-    return actionsQueue.splice(0, actionsQueue.length);
+  function getCurrentTickActions() {
+    actionsQueue.sort(actionCompare);
+    const currentTick = gameState.lagCompensatedTick;
+
+    const start = actionsQueue.findIndex(
+      action => action.actionInterface.tickOccurred === currentTick,
+    );
+    if (start === -1) {
+      return [];
+    }
+
+    const end = actionsQueue.findIndex(
+      action => action.actionInterface.tickOccurred > currentTick,
+    );
+    return actionsQueue.slice(start, end === -1 ? actionsQueue.length : end);
   }
 
-  function drainBroadcastedActionsQueue() {
-    return broadcastedActionsQueue.splice(0, broadcastedActionsQueue.length);
+  function dropOldActions() {
+    actionsQueue.sort(actionCompare);
+    const actionsToRemove = actionsQueue.findIndex(action => (
+      action.actionInterface.tickOccurred > gameState.previousServerTick &&
+        action.actionInterface.tickOccurred < gameState.lagCompensatedTick
+    ));
+    actionsQueue.splice(0, actionsToRemove === -1 ? 0 : actionsToRemove);
   }
+
+  function lagCompensate(action) {
+    if (EngineConfig.isServer()) {
+      const tdiff = new Date() - gameState.lastServerUpdateTime;
+      const tleft = LAG_COMPENSATION_THRESHOLD - tdiff;
+      const tickLate = gameState.serverTick - action.actionInterface.tickOccurred;
+      if (tickLate * GAMEPLAY_UPDATE_INTERVAL > tleft) {
+        const ticksAfter = Math.ceil(tleft / GAMEPLAY_UPDATE_INTERVAL);
+        action.actionInterface.tickOccurred = gameState.previousServerTick + ticksAfter;
+      }
+    }
+
+    const actionTickOccurred = action.actionInterface.tickOccurred;
+    if (action.actionInterface.tickOccurred < gameState.lagCompensatedTick) {
+      gameState.lagCompensatedTick = actionTickOccurred;
+    }
+  }
+}
+
+function actionCompare(actionA, actionB) {
+  const tickOccurredA = actionA.actionInterface.tickOccurred;
+  const tickOccurredB = actionB.actionInterface.tickOccurred;
+  const tickD = tickOccurredA - tickOccurredB;
+  if (tickD !== 0) {
+    return tickD;
+  }
+
+  const idA = actionA.actionInterface.internalActionId;
+  const idB = actionB.actionInterface.internalActionId;
+  const d = idA - idB;
+  if (d !== 0) {
+    return d;
+  }
+
+  return 0;
 }
 
 export default ActionController;

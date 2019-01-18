@@ -1,37 +1,33 @@
 import ActionInterface from '../Interfaces/ActionInterface';
 import SerializableInterface from '../Interfaces/SerializableInterface';
-import BroadcastedActionInterface from '../Interfaces/BroadcastedActionInterface';
 import { setDebugProperty } from '../Utils/Debug';
 
 /**
  * @param {string} playerHashId
- * @param timeOccurred
+ * @param {number|null} tickOccurred
  * @param {number|null} senderId
+ * @param {number|null} clientActionId
  * @constructor
  */
-function DespawnPlayerAction(playerHashId, timeOccurred = 0, senderId = null) {
-  const parameters = {};
-
+function DespawnPlayerAction(
+  playerHashId,
+  tickOccurred = null,
+  senderId = null,
+  clientActionId = null,
+) {
   // INTERFACES IMPLEMENTATION.
   this.actionInterface = new ActionInterface(this, {
-    getTimeOccurred: () => parameters.timeOccurred,
-
-    setTimeOccurred: (newTimeOccurred) => {
-      parameters.timeOccurred = newTimeOccurred;
-      setDebugProperty(this, 'timeOccurred', newTimeOccurred);
-      return this;
-    },
+    isBroadcastedAfterExecution: () => true,
   });
-
-  this.broadcastedActionInterface = new BroadcastedActionInterface(this, {});
 
   // CLASS IMPLEMENTATION.
   this.getPlayerHashId = () => playerHashId;
   setDebugProperty(this, 'playerHashId', playerHashId);
 
   // INITIALIZE DEFAULT PARAMETERS.
-  this.actionInterface.setTimeOccurred(timeOccurred);
-  this.broadcastedActionInterface.setSenderId(senderId);
+  this.actionInterface.tickOccurred = tickOccurred;
+  this.actionInterface.senderId = senderId;
+  this.actionInterface.clientActionId = clientActionId;
 }
 
 DespawnPlayerAction.serializableInterface =
@@ -41,14 +37,16 @@ DespawnPlayerAction.serializableInterface =
      */
     serialize: action => ({
       playerHashId: () => action.getPlayerHashId(),
-      timeOccurred: () => action.actionInterface.getTimeOccurred(),
-      senderId: () => action.broadcastedActionInterface.getSenderId(),
+      tickOccurred: () => action.actionInterface.tickOccurred,
+      senderId: () => action.actionInterface.senderId,
+      clientActionId: () => action.actionInterface.clientActionId,
     }),
 
     deserialize: object => new DespawnPlayerAction(
       object.playerHashId,
-      new Date(object.timeOccurred),
+      object.tickOccurred,
       object.senderId,
+      object.clientActionId,
     ),
   });
 

@@ -27,11 +27,7 @@ pub fn remove_object(hash_id: &str) {
 }
 
 #[wasm_bindgen(js_name = processPlayersMovement)]
-pub fn process_players_movement(
-    time_delta: f64,
-    players: js_sys::Iterator,
-    objects: js_sys::Iterator,
-) {
+pub fn process_players_movement(players: js_sys::Iterator, objects: js_sys::Iterator) {
     let world: &mut MuddleWorld = &mut *MUDDLE.lock().unwrap();
-    world.process_players_movement(time_delta, players, objects);
+    world.process_players_movement(players, objects);
 }

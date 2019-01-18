@@ -3,6 +3,8 @@ import SerializableInterface from '../Interfaces/SerializableInterface';
 import PlaceableObjectInterface from '../Interfaces/PlaceableObjectInterface';
 import { setDebugProperty } from '../Utils/Debug';
 import SavableInterface from '../Interfaces/SavableInterface';
+import CopyableInterface from '../Interfaces/CopyableInterface';
+import { copyInto } from '../Utils/CopyableHelpers';
 
 /**
  * @param {Vector2} position
@@ -45,6 +47,17 @@ function Rectangle(position, size, color, isPlaced, predefinedHashId = '') {
       setDebugProperty(this, 'isPlaced', newIsPlaced);
       return this;
     },
+  });
+
+  this.copyableInterface = new CopyableInterface(this, {
+    copy: () => (copyInto(
+      Rectangle,
+      parameters.position,
+      parameters.size,
+      parameters.color,
+      parameters.isPlaced,
+      this.hashableIdInterface.getHashId(),
+    )),
   });
 
   this.savableInterface = new SavableInterface(this, {

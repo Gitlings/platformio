@@ -15,7 +15,7 @@ function ObjectRendererInterface(renderer, interfaceImplementation) {
 
   this.getRootMesh = () => implementation.callMethod('getRootMesh');
 
-  this.renderUpdate = () => implementation.callMethod('renderUpdate');
+  this.renderUpdate = renderedObject => implementation.callMethod('renderUpdate', renderedObject);
 }
 
 ObjectRendererInterface.assert = (entity) => {

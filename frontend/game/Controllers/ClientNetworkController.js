@@ -19,12 +19,12 @@ function ClientNetworkController(clientNetworkMessageSystem, actionController) {
   const messageQueue = [];
 
   this.updatableInterface = new UpdatableInterface(this, {
-    update: (_timeDelta) => {},
+    update: () => {},
   });
 
   this.networkControllerInterface = new NetworkControllerInterface(this, {
     broadcastAction: (action) => {
-      if (action.broadcastedActionInterface.getSenderId() === null) {
+      if (action.actionInterface.senderId === null) {
         this.send(new BroadcastActionMessage(action));
       }
     },

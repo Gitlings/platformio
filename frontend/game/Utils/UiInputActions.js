@@ -179,7 +179,6 @@ function UiInputActions(cameraController, builderController, playerController, u
       throw new Error('onKeyUp callback function is not set');
     }
     if (typeof actionCallback.onKeyPress !== 'undefined') {
-      /* eslint-disable no-param-reassign */
       actionCallback.onKeyPress = undefined;
     }
     stateActions.set(keyCode, actionCallback);
@@ -197,11 +196,9 @@ function UiInputActions(cameraController, builderController, playerController, u
       throw new Error(`Can't redefine ${keyCode} for '${uiStateDescription}' state`);
     }
     if (typeof actionCallback.onKeyDown !== 'undefined') {
-      /* eslint-disable no-param-reassign */
       actionCallback.onKeyDown = undefined;
     }
     if (typeof actionCallback.onKeyUp !== 'undefined') {
-      /* eslint-disable no-param-reassign */
       actionCallback.onKeyUp = undefined;
     }
     if (typeof actionCallback.onKeyPress !== 'function') {

@@ -5,6 +5,8 @@ import EngineConfig from './EngineConfig';
 import GlobalPsonDictionary from './Utils/GlobalPsonDictionary';
 
 import ActionController from './Controllers/ActionController';
+import GameState from './Models/GameState';
+import { MAX_TICKS_WITHOUT_SERVER } from './Constants';
 
 /**
  * @param {boolean} isServer
@@ -21,8 +23,22 @@ function Engine(isServer) {
    */
   const actionController = CommonMuddle[ActionController];
 
-  this.tick = (timeDelta) => {
-    actionController.updatableInterface.update(timeDelta);
+  /**
+   * @type GameState
+   */
+  const gameState = CommonMuddle[GameState];
+
+  this.tick = () => {
+    const maxTick = gameState.serverTick + MAX_TICKS_WITHOUT_SERVER;
+    if (EngineConfig.isClient() && gameState.currentTick > maxTick) {
+      return false;
+    }
+    actionController.updatableInterface.update();
+    gameState.lagCompensatedTick += 1;
+    if (gameState.currentTick < gameState.lagCompensatedTick) {
+      gameState.currentTick += 1;
+    }
+    return true;
   };
 }
 

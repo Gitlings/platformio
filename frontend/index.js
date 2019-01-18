@@ -26,6 +26,6 @@ Vue.use(Vuikit);
 Vue.use(VuikitIcons);
 
 // Not my proudest hack.
-require('./game/Utils/ThreeSerializers');
+require('./game/Utils/ThreeInterfaceImplementations');
 
 game.startGameLoop();

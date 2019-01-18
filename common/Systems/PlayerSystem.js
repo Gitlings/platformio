@@ -9,11 +9,11 @@ import ActivePlayersRegistry from '../Registries/ActivePlayersRegistry';
 import EngineConfig from '../EngineConfig';
 
 /**
- * @param {GameScene} gameScene
+ * @param {GameSceneSnapshots} gameSceneSnapshots
  * @param {PlayerModel} playerModel
  * @constructor
  */
-function PlayerSystem(gameScene, playerModel) {
+function PlayerSystem(gameSceneSnapshots, playerModel) {
   const actionProcessors = new Map([
     [SpawnPlayerAction, spawnPlayer],
     [DespawnPlayerAction, despawnPlayer],
@@ -30,12 +30,9 @@ function PlayerSystem(gameScene, playerModel) {
    * @param {SpawnPlayerAction} action
    */
   function spawnPlayer(action) {
-    if (replaying(action, playerModel)) {
-      return;
-    }
-
+    const gameScene = gameSceneSnapshots.getCurrent();
     if (EngineConfig.isServer() && !action.getClientId()) {
-      action.setClientId(action.broadcastedActionInterface.getSenderId());
+      action.setClientId(action.actionInterface.senderId);
     }
     gameScene.addPlayer(action.getClientId(), action.getPlayer());
     RustCommon.addPlayer(action.getPlayer());
@@ -45,10 +42,7 @@ function PlayerSystem(gameScene, playerModel) {
    * @param {DespawnPlayerAction} action
    */
   function despawnPlayer(action) {
-    if (replaying(action, playerModel)) {
-      return;
-    }
-
+    const gameScene = gameSceneSnapshots.getCurrent();
     gameScene.removePlayer(action.getPlayerHashId());
   }
 
@@ -56,10 +50,7 @@ function PlayerSystem(gameScene, playerModel) {
    * @param {DespawnClientPlayerAction} action
    */
   function despawnClientPlayers(action) {
-    if (replaying(action, playerModel)) {
-      return;
-    }
-
+    const gameScene = gameSceneSnapshots.getCurrent();
     const clientId = action.getClientId();
     gameScene.removePlayerByClientId(clientId);
 

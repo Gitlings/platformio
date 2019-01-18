@@ -1,7 +1,7 @@
 import EngineConfig from '../EngineConfig';
 
 export function setDebugProperty(entity, property, value) {
-  /* eslint-disable no-param-reassign, no-underscore-dangle */
+  /* eslint-disable no-underscore-dangle */
   if (EngineConfig.debugIsEnabled()) {
     if (!entity._debug) {
       entity._debug = {};

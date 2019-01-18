@@ -19,7 +19,7 @@ import InterfaceImplementation, {
 function UpdatableInterface(object, interfaceImplementation) {
   const implementation = new InterfaceImplementation(this, object, interfaceImplementation);
 
-  this.update = timeDelta => implementation.callMethod('update', timeDelta);
+  this.update = () => implementation.callMethod('update');
 }
 
 UpdatableInterface.assert = (entity) => {

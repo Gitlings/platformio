@@ -53,6 +53,12 @@ function SystemInterface(entity, interfaceImplementation) {
   /**
    * @param processedEntity
    */
+  this.lagCompensate =
+    processedEntity => implementation.callMethod('lagCompensate', processedEntity);
+
+  /**
+   * @param processedEntity
+   */
   this.process = processedEntity => implementation.callMethod('process', processedEntity);
 }
 

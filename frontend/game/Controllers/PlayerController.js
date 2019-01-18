@@ -62,7 +62,7 @@ function PlayerController(actionController, cameraWrapper, playerModel) {
    * @param {Vector2} position
    */
   function addPlayer(position) {
-    player = new Player(position);
+    player = new Player(position, true);
     const { clientId } = playerModel;
     actionController.addAction(new SpawnPlayerAction(player, clientId));
   }

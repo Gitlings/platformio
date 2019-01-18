@@ -1,6 +1,5 @@
 import ActionInterface from '../Interfaces/ActionInterface';
 import SerializableInterface from '../Interfaces/SerializableInterface';
-import BroadcastedActionInterface from '../Interfaces/BroadcastedActionInterface';
 import { setDebugProperty } from '../Utils/Debug';
 
 /**
@@ -9,25 +8,19 @@ import { setDebugProperty } from '../Utils/Debug';
  * is used.
  *
  * @param {number} clientId
- * @param timeOccurred
+ * @param {number|null} tickOccurred
  * @param {number|null} senderId
+ * @param {number|null} clientActionId
  * @constructor
  */
-function DespawnClientPlayerAction(clientId, timeOccurred = 0, senderId = null) {
-  const parameters = {};
-
+function DespawnClientPlayerAction(
+  clientId,
+  tickOccurred = null,
+  senderId = null,
+  clientActionId = null,
+) {
   // INTERFACES IMPLEMENTATION.
   this.actionInterface = new ActionInterface(this, {
-    getTimeOccurred: () => parameters.timeOccurred,
-
-    setTimeOccurred: (newTimeOccurred) => {
-      parameters.timeOccurred = newTimeOccurred;
-      setDebugProperty(this, 'timeOccurred', newTimeOccurred);
-      return this;
-    },
-  });
-
-  this.broadcastedActionInterface = new BroadcastedActionInterface(this, {
     isBroadcastedAfterExecution: () => true,
   });
 
@@ -39,8 +32,9 @@ function DespawnClientPlayerAction(clientId, timeOccurred = 0, senderId = null) 
   setDebugProperty(this, 'clientId', clientId);
 
   // INITIALIZE DEFAULT PARAMETERS.
-  this.actionInterface.setTimeOccurred(timeOccurred);
-  this.broadcastedActionInterface.setSenderId(senderId);
+  this.actionInterface.tickOccurred = tickOccurred;
+  this.actionInterface.senderId = senderId;
+  this.actionInterface.clientActionId = clientActionId;
 }
 
 DespawnClientPlayerAction.serializableInterface =
@@ -50,14 +44,16 @@ DespawnClientPlayerAction.serializableInterface =
      */
     serialize: action => ({
       clientId: () => action.getClientId(),
-      timeOccurred: () => action.actionInterface.getTimeOccurred(),
-      senderId: () => action.broadcastedActionInterface.getSenderId(),
+      tickOccurred: () => action.actionInterface.tickOccurred,
+      senderId: () => action.actionInterface.senderId,
+      clientActionId: () => action.actionInterface.clientActionId,
     }),
 
     deserialize: object => new DespawnClientPlayerAction(
       object.clientId,
-      new Date(object.timeOccurred),
+      object.tickOccurred,
       object.senderId,
+      object.clientActionId,
     ),
   });
 

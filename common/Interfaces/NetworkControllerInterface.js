@@ -15,7 +15,10 @@ function NetworkControllerInterface(networkController, interfaceImplementation) 
     interfaceImplementation,
   );
 
-  this.broadcastAction = action => implementation.callMethod('broadcastAction', action);
+  this.broadcastAction = (action) => {
+    action.actionInterface.hasBeenBroadcasted = true;
+    implementation.callMethod('broadcastAction', action);
+  };
 }
 
 NetworkControllerInterface.assert = (entity) => {

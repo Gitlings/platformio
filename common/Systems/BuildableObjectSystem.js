@@ -6,11 +6,11 @@ import RemoveBuildableObjectAction from '../Actions/RemoveBuildableObjectAction'
 import { replaying } from '../Utils/SystemHelpers';
 
 /**
- * @param {GameScene} gameScene
+ * @param {GameSceneSnapshots} gameSceneSnapshots
  * @param {PlayerModel} playerModel
  * @constructor
  */
-function BuildableObjectSystem(gameScene, playerModel) {
+function BuildableObjectSystem(gameSceneSnapshots, playerModel) {
   const actionProcessors = new Map([
     [SaveBuildableObjectAction, saveBuildableObject],
     [RemoveBuildableObjectAction, removeBuildableObject],
@@ -26,10 +26,7 @@ function BuildableObjectSystem(gameScene, playerModel) {
    * @param {SaveBuildableObjectAction} action
    */
   function saveBuildableObject(action) {
-    if (replaying(action, playerModel)) {
-      return;
-    }
-
+    const gameScene = gameSceneSnapshots.getCurrent();
     const buildableObject = action.getBuildableObject();
     const existingBuildableObject =
       gameScene.getBuildableObject(buildableObject.hashableIdInterface.getHashId());
@@ -52,6 +49,7 @@ function BuildableObjectSystem(gameScene, playerModel) {
    * @param {RemoveBuildableObjectAction} action
    */
   function removeBuildableObject(action) {
+    const gameScene = gameSceneSnapshots.getCurrent();
     gameScene.removeBuildableObject(action.getBuildableObjectHashId());
   }
 }

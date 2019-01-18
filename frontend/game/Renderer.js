@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-import GameState from 'common/Models/GameState';
+import GameSceneSnapshots from 'common/Models/GameSceneSnapshots';
 
 import CircleRenderer from './Renderers/CircleRenderer';
 import PlayerRenderer from './Renderers/PlayerRender';
@@ -31,9 +31,9 @@ function Renderer(renderer) {
   const canvasWrapper = ClientMuddle[CanvasWrapper];
 
   /**
-   * @type GameState
+   * @type GameSceneSnapshots
    */
-  const gameState = ClientMuddle.common[GameState];
+  const gameSceneSnapshots = ClientMuddle.common[GameSceneSnapshots];
 
   const scene = new THREE.Scene();
 
@@ -58,7 +58,12 @@ function Renderer(renderer) {
   }
 
   function updateMeshes() {
-    for (const object of gameState.getAllObjects()) {
+    const gameScene = gameSceneSnapshots.getCurrentReadOnly();
+    if (!gameScene) {
+      return;
+    }
+
+    for (const object of gameScene.getAllObjects()) {
       const hashId = object.hashableIdInterface.getHashId();
       if (!objectRenderers.has(hashId)) {
         const objectRenderer = createObjectRenderer(object);
@@ -71,8 +76,9 @@ function Renderer(renderer) {
     }
 
     for (const [hashId, objectRenderer] of objectRenderers) {
-      if (gameState.hasObject(hashId)) {
-        objectRenderer.objectRendererInterface.renderUpdate();
+      const object = gameScene.getObject(hashId);
+      if (object) {
+        objectRenderer.objectRendererInterface.renderUpdate(object);
       } else {
         scene.remove(objectRenderer.objectRendererInterface.getRootMesh());
         objectRenderers.delete(hashId);

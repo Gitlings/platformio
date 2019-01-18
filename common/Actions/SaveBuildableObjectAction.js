@@ -1,29 +1,22 @@
 import ActionInterface from '../Interfaces/ActionInterface';
 import SerializableInterface from '../Interfaces/SerializableInterface';
-import BroadcastedActionInterface from '../Interfaces/BroadcastedActionInterface';
 import { setDebugProperty } from '../Utils/Debug';
 
 /**
  * @param {object} buildableObject
- * @param timeOccurred
+ * @param {number|null} tickOccurred
  * @param {number|null} senderId
+ * @param {number|null} clientActionId
  * @constructor
  */
-function SaveBuildableObjectAction(buildableObject, timeOccurred = 0, senderId = null) {
-  const parameters = {};
-
+function SaveBuildableObjectAction(
+  buildableObject,
+  tickOccurred = null,
+  senderId = null,
+  clientActionId = null,
+) {
   // INTERFACES IMPLEMENTATION.
   this.actionInterface = new ActionInterface(this, {
-    getTimeOccurred: () => parameters.timeOccurred,
-
-    setTimeOccurred: (newTimeOccurred) => {
-      parameters.timeOccurred = newTimeOccurred;
-      setDebugProperty(this, 'timeOccurred', newTimeOccurred);
-      return this;
-    },
-  });
-
-  this.broadcastedActionInterface = new BroadcastedActionInterface(this, {
     isBroadcastedAfterExecution: () => true,
   });
 
@@ -32,8 +25,9 @@ function SaveBuildableObjectAction(buildableObject, timeOccurred = 0, senderId =
   setDebugProperty(this, 'buildableObject', buildableObject);
 
   // INITIALIZE DEFAULT PARAMETERS.
-  this.actionInterface.setTimeOccurred(timeOccurred);
-  this.broadcastedActionInterface.setSenderId(senderId);
+  this.actionInterface.tickOccurred = tickOccurred;
+  this.actionInterface.senderId = senderId;
+  this.actionInterface.clientActionId = clientActionId;
 }
 
 SaveBuildableObjectAction.serializableInterface =
@@ -43,14 +37,16 @@ SaveBuildableObjectAction.serializableInterface =
      */
     serialize: action => ({
       buildableObject: () => action.getBuildableObject(),
-      timeOccurred: () => action.actionInterface.getTimeOccurred(),
-      senderId: () => action.broadcastedActionInterface.getSenderId(),
+      tickOccurred: () => action.actionInterface.tickOccurred,
+      senderId: () => action.actionInterface.senderId,
+      clientActionId: () => action.actionInterface.clientActionId,
     }),
 
     deserialize: object => new SaveBuildableObjectAction(
       object.buildableObject,
-      new Date(object.timeOccurred),
+      object.tickOccurred,
       object.senderId,
+      object.clientActionId,
     ),
   });
 

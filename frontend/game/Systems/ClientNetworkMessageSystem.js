@@ -1,6 +1,6 @@
 import SystemInterface from 'common/Interfaces/SystemInterface';
 import AuthenticationResponseMessage from 'common/NetworkMessages/AuthenticationResponseMessage';
-import GameStateMessage from 'common/NetworkMessages/GameStateMessage';
+import InitializeGameMessage from 'common/NetworkMessages/InitializeGameMessage';
 import SpawnPlayerAction from 'common/Actions/SpawnPlayerAction';
 import SaveBuildableObjectAction from 'common/Actions/SaveBuildableObjectAction';
 import PingMessage from 'common/NetworkMessages/PingMessage';
@@ -10,23 +10,36 @@ import BroadcastPlayersLatencyMessage from 'common/NetworkMessages/BroadcastPlay
 import PlayerLoggedInMessage from 'common/NetworkMessages/PlayerLoggedInMessage';
 import PlayerLoggedOutMessage from 'common/NetworkMessages/PlayerLoggedOutMessage';
 import ActivePlayersRegistry from 'common/Registries/ActivePlayersRegistry';
-import { SERVER_SENDER_ID } from 'common/Interfaces/BroadcastedActionInterface';
+import { SERVER_SENDER_ID } from 'common/Constants';
+import GameUpdateMessage from 'common/NetworkMessages/GameUpdateMessage';
+import GameScene from 'common/Models/GameScene';
+import { log } from 'common/Utils/Debug';
 
 /**
  * @param {UiManager} uiManager
  * @param {ActionController} actionController
  * @param {PlayerModel} playerModel
+ * @param {GameState} gameState
+ * @param {GameSceneSnapshots} gameSceneSnapshots
  * @param {Store} vuexStore
  * @constructor
  */
-function ClientNetworkMessageSystem(uiManager, actionController, playerModel, vuexStore) {
+function ClientNetworkMessageSystem(
+  uiManager,
+  actionController,
+  playerModel,
+  gameState,
+  gameSceneSnapshots,
+  vuexStore,
+) {
   let ws;
 
   const parameters = { playerModel };
   const messageProcessors = new Map([
     [AuthenticationResponseMessage, processAuthenticationResponse],
     [BroadcastPlayersLatencyMessage, processBroadcastPlayersLatencyMessage],
-    [GameStateMessage, processGameStateMessage],
+    [InitializeGameMessage, processInitializeMessage],
+    [GameUpdateMessage, processGameUpdateMessage],
     [PingMessage, processPingMessage],
     [PlayerLoggedInMessage, processPlayerLoggedInMessage],
     [PlayerLoggedOutMessage, processPlayerLoggedOutMessage],
@@ -53,7 +66,6 @@ function ClientNetworkMessageSystem(uiManager, actionController, playerModel, vu
       vuexStore.commit('players/addPlayer', player);
       player.authenticated = true;
       localStorage.setItem('displayName', player.displayName);
-      uiManager.activatePlayerMode();
     }
   }
 
@@ -67,22 +79,47 @@ function ClientNetworkMessageSystem(uiManager, actionController, playerModel, vu
   }
 
   /**
-   * @param {GameStateMessage} message
+   * @param {InitializeGameMessage} message
    */
-  function processGameStateMessage(message) {
+  function processInitializeMessage(message) {
+    const gameScene = new GameScene();
+    gameState.serverTick = message.getServerTick();
+    gameState.lagCompensatedTick = gameState.serverTick;
+    gameState.currentTick = gameState.serverTick;
+    gameScene.currentTick = gameState.serverTick;
     for (const player of message.getActivePlayers()) {
       ActivePlayersRegistry.registerPlayer(player);
       vuexStore.commit('players/addPlayer', player);
     }
     for (const [clientIdStr, playerObject] of Object.entries(message.getPlayerObjects())) {
       const clientId = parseInt(clientIdStr, 10);
-      const action = new SpawnPlayerAction(playerObject, clientId, 0, SERVER_SENDER_ID);
+      const action = new SpawnPlayerAction(playerObject, clientId, null, SERVER_SENDER_ID);
       actionController.addAction(action);
     }
     for (const buildableObject of message.getBuildableObjects()) {
-      const action = new SaveBuildableObjectAction(buildableObject, 0, SERVER_SENDER_ID);
+      const action = new SaveBuildableObjectAction(buildableObject, null, SERVER_SENDER_ID);
       actionController.addAction(action);
     }
+    for (const action of message.getActions()) {
+      actionController.addAction(action);
+    }
+    uiManager.activatePlayerMode();
+
+    gameSceneSnapshots.setCurrent(gameScene);
+    gameSceneSnapshots.addSnapshot(gameScene.currentTick, gameScene);
+
+    log(`Processed InitializeGameMessage. Server tick: ${gameState.serverTick}`);
+  }
+
+  /**
+   * @param {GameUpdateMessage} message
+   */
+  function processGameUpdateMessage(message) {
+    for (const action of message.getActions()) {
+      actionController.addAction(action);
+    }
+    gameState.previousServerTick = message.getPreviousServerTick();
+    gameState.serverTick = message.getServerTick();
   }
 
   /**

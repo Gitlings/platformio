@@ -11,20 +11,28 @@ import DespawnClientPlayerAction from 'common/Actions/DespawnClientPlayerAction'
 import PlayerLoggedOutMessage from 'common/NetworkMessages/PlayerLoggedOutMessage';
 import AuthenticationRequestMessage from 'common/NetworkMessages/AuthenticationRequestMessage';
 import BroadcastPlayersLatencyMessage from 'common/NetworkMessages/BroadcastPlayersLatencyMessage';
-import GameStateMessage from 'common/NetworkMessages/GameStateMessage';
+import InitializeGameMessage from 'common/NetworkMessages/InitializeGameMessage';
 import PlayerLoggedInMessage from 'common/NetworkMessages/PlayerLoggedInMessage';
 import AuthenticationResponseMessage from 'common/NetworkMessages/AuthenticationResponseMessage';
-import { SERVER_SENDER_ID } from 'common/Interfaces/BroadcastedActionInterface';
+import { SERVER_SENDER_ID } from 'common/Constants';
 
 import { broadcastToEveryone, broadcastToOthers } from '../Utils/ServerNetworkUtils';
 import ClientsRegistry from '../Registries/ClientsRegistries';
+import GameUpdateMessage from '../../common/NetworkMessages/GameUpdateMessage';
 
 /**
  * @param {ActionController} actionController
  * @param {GameState} gameState
+ * @param {GameSceneSnapshots} gameSceneSnapshots
+ * @param {BroadcastedActionsQueue} broadcastedActionsQueue
  * @constructor
  */
-function ServerNetworkMessageSystem(actionController, gameState) {
+function ServerNetworkMessageSystem(
+  actionController,
+  gameState,
+  gameSceneSnapshots,
+  broadcastedActionsQueue,
+) {
   const messageProcessors = new Map([
     [AuthenticationRequestMessage, processAuthenticationRequestMessage],
     [PongMessage, processPongMessage],
@@ -60,6 +68,14 @@ function ServerNetworkMessageSystem(actionController, gameState) {
    */
   const pingMessagesByClientId = new Map();
 
+  /**
+   * Stores a copy of broadcastedActionsQueue, so we can still send InitializeGameMessage to newly
+   * connected players, after the original broadcastedActionsQueue gets emptied.
+   *
+   * @type {Array}
+   */
+  let preservedActionsQueue = [];
+
   let pingIdCounter = 0;
 
   // INTERFACES IMPLEMENTATION.
@@ -67,33 +83,9 @@ function ServerNetworkMessageSystem(actionController, gameState) {
     /**
      * Send ping messages and close sockets that do not respond.
      */
-    update: (_timeDelta) => {
-      const now = new Date();
-      for (const player of ActivePlayersRegistry.getAllPlayers()) {
-        const ws = ClientsRegistry.getSocketByClientId(player.clientId);
-        if (ws.readyState === ws.CLOSED) {
-          dropPlayer(player);
-          continue;
-        }
-
-        const lastPingMessageDate = lastPingMessageDates.get(player.clientId);
-
-        const hasNoPingMessageSent = !lastPingMessageDate;
-        const isAwaitingPongMessage = pingMessagesByClientId.has(player.clientId);
-        const isTimeToSendAnotherPing = !hasNoPingMessageSent
-          && !isAwaitingPongMessage
-          && now - lastPingMessageDate > PING_INTERVAL;
-
-        const noPingTime = now - lastPingMessageDate;
-        const timeout = noPingTime > CONNECTION_TIMEOUT
-          || (!player.authenticated && noPingTime > UNAUTHENTICATED_CONNECTION_TIMEOUT);
-        if (hasNoPingMessageSent || isTimeToSendAnotherPing) {
-          sendPingMessage(now, player);
-        } else if (timeout) {
-          dropPlayer(player);
-          log(`Connection with Player (${player.clientId}) has been dropped (timeout)`);
-        }
-      }
+    update: () => {
+      broadcastGameUpdate();
+      ping();
     },
   });
 
@@ -106,10 +98,60 @@ function ServerNetworkMessageSystem(actionController, gameState) {
   // CLASS IMPLEMENTATION.
   setInterval(broadcastPlayersLatency, BROADCAST_LATENCY_INTERVAL);
 
+  function broadcastGameUpdate() {
+    const actions = broadcastedActionsQueue.getActions();
+    broadcastedActionsQueue.clearActions();
+    preservedActionsQueue = actions;
+
+    gameState.previousServerTick = gameState.serverTick;
+    gameState.serverTick = gameState.currentTick;
+    const gameUpdateMessage = new GameUpdateMessage(
+      actions,
+      gameState.previousServerTick,
+      gameState.serverTick,
+    );
+    broadcastToEveryone(gameUpdateMessage);
+
+    gameState.lastServerUpdateTime = new Date();
+  }
+
+  function ping() {
+    const now = new Date();
+    for (const player of ActivePlayersRegistry.getAllPlayers()) {
+      const ws = ClientsRegistry.getSocketByClientId(player.clientId);
+      if (!ws) {
+        throw new Error('Player in ActivePlayersRegistry has got no socket, was she despawned?');
+      }
+      if (ws.readyState === ws.CLOSED) {
+        dropPlayer(player);
+        continue;
+      }
+
+      const lastPingMessageDate = lastPingMessageDates.get(player.clientId);
+
+      const hasNoPingMessageSent = !lastPingMessageDate;
+      const isAwaitingPongMessage = pingMessagesByClientId.has(player.clientId);
+      const isTimeToSendAnotherPing = !hasNoPingMessageSent
+        && !isAwaitingPongMessage
+        && now - lastPingMessageDate > PING_INTERVAL;
+
+      const noPingTime = now - lastPingMessageDate;
+      const timeout = noPingTime > CONNECTION_TIMEOUT
+        || (!player.authenticated && noPingTime > UNAUTHENTICATED_CONNECTION_TIMEOUT);
+      if (hasNoPingMessageSent || isTimeToSendAnotherPing) {
+        sendPingMessage(now, player);
+      } else if (timeout) {
+        dropPlayer(player);
+        log(`Connection with Player (${player.clientId}) has been dropped (timeout)`);
+      }
+    }
+  }
+
   /**
    * @param {AuthenticationRequestMessage} message
    */
   function processAuthenticationRequestMessage(message) {
+    const gameScene = gameSceneSnapshots.getCurrent();
     const clientId = message.networkMessageInterface.getSenderId();
     const player = ActivePlayersRegistry.getPlayerById(clientId);
     const displayName = (message.getDisplayName() || '').trim();
@@ -125,16 +167,18 @@ function ServerNetworkMessageSystem(actionController, gameState) {
         .toArray();
 
       const playerObjects = {};
-      for (const [playerClientId, playerObject] of gameState.getAllPlayersWithClientIds()) {
+      for (const [playerClientId, playerObject] of gameScene.getAllPlayersWithClientIds()) {
         playerObjects[playerClientId] = playerObject;
       }
 
-      const gameStateMessage = new GameStateMessage(
+      const gameUpdateMessage = new InitializeGameMessage(
         activePlayers,
         playerObjects,
-        gameState.getAllBuildableObjects(),
+        gameScene.getAllBuildableObjects(),
+        preservedActionsQueue,
+        gameState.serverTick,
       );
-      send(currentPlayerSocket, gameStateMessage);
+      send(currentPlayerSocket, gameUpdateMessage);
 
       // Broadcast information to other clients.
       player.displayName = displayName;

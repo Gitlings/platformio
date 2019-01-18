@@ -1,12 +1,14 @@
 /**
  * IMPORTANT!!!
  *
- * If editing this file, remember to do the same changes to frontend/game/Utils/ThreeSerializers.js.
+ * If editing this file, remember to apply the same changes to
+ * frontend/game/Utils/ThreeInterfaceImplementations.js.
  */
 
 /* eslint-disable no-mixed-operators,no-bitwise */
 import * as THREE from 'three';
 import SerializableInterface from '../Interfaces/SerializableInterface';
+import CopyableInterface from '../Interfaces/CopyableInterface';
 
 THREE.Vector2.serializableInterface = new SerializableInterface(THREE.Vector2, {
   serialize: object => ({
@@ -17,12 +19,24 @@ THREE.Vector2.serializableInterface = new SerializableInterface(THREE.Vector2, {
   deserialize: object => new THREE.Vector2(object.x, object.y),
 });
 
+THREE.Vector2.prototype.copyableInterface = new CopyableInterface({}, {});
+
+THREE.Vector2.copyableInterface = new CopyableInterface(THREE.Vector2, {
+  copy: object => object.clone(),
+});
+
 THREE.Color.serializableInterface = new SerializableInterface(THREE.Color, {
   serialize: object => ({
     value: () => colorToArray(object),
   }),
 
   deserialize: object => new THREE.Color(arrayToColor(object.value)),
+});
+
+THREE.Color.prototype.copyableInterface = new CopyableInterface({}, {});
+
+THREE.Color.copyableInterface = new CopyableInterface(THREE.Color, {
+  copy: object => object.clone(),
 });
 
 /**
